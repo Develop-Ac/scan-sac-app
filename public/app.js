@@ -155,10 +155,9 @@
         docRow({
           thumb: rec.thumb,
           docDate: rec.docDate,
+          docType: rec.docType,
           typeLabel: labelOf(rec.docType),
           descricao: rec.descricao,
-          nfNumero: rec.nfNumero,
-          fornecedorNome: rec.fornecedorNome,
           right: 'pendente',
           rightClass: 'tag-warn',
         }),
@@ -166,15 +165,47 @@
     });
   }
 
-  const TYPES = []; // preenchido por loadConfig
+  // Tipos de documento do SAC. Esta lista manda no app inteiro: os cards da home,
+  // o <select> da analise e o filtro dos enviados saem todos daqui.
+  // `icon` aponta para um <symbol> do sprite em index.html.
+  // `retorno` so muda a cor do card (fluxo de volta: devolucao/garantia).
+  const TYPES = [
+    { id: 'nota-fiscal', label: 'Nota Fiscal', icon: 'ico-nota-fiscal', hint: 'NF-e de venda' },
+    { id: 'cupom-fiscal', label: 'Cupom Fiscal', icon: 'ico-cupom-fiscal', hint: 'Cupom do PDV' },
+    { id: 'ni', label: 'N.I', icon: 'ico-ni', hint: 'Nota interna' },
+    {
+      id: 'nota-devolucao',
+      label: 'Nota de Devolução',
+      icon: 'ico-nota-devolucao',
+      hint: 'Retorno de mercadoria',
+      retorno: true,
+    },
+    {
+      id: 'ni-devolucao',
+      label: 'N.I de Devolução',
+      icon: 'ico-ni-devolucao',
+      hint: 'Nota interna de retorno',
+      retorno: true,
+    },
+    {
+      id: 'ni-garantia',
+      label: 'N.I de Garantia',
+      icon: 'ico-ni-garantia',
+      hint: 'Troca em garantia',
+      retorno: true,
+    },
+  ];
+  const typeOf = (id) => TYPES.find((x) => x.id === id) || null;
   function labelOf(id) {
-    const t = TYPES.find((x) => x.id === id);
+    const t = typeOf(id);
     return t ? t.label : id;
   }
-  // Tipos amarrados a uma nota de compra (guia de ICMS-ST): pedem NF + fornecedor.
-  function requiresNf(id) {
-    const t = TYPES.find((x) => x.id === id);
-    return !!(t && t.requiresNf);
+  // <svg> com o icone do tipo (sprite em index.html). Sem `id` -> icone genérico.
+  function typeIconSvg(id) {
+    const t = typeOf(id);
+    return `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#${
+      t ? t.icon : 'ico-nota-fiscal'
+    }"/></svg>`;
   }
 
   function docRow(o) {
@@ -188,23 +219,18 @@
       img.src = o.thumb;
       left.appendChild(img);
     } else {
+      // Sem miniatura (enviados vindos do servidor): o ícone do tipo já identifica.
       const ph = document.createElement('div');
       ph.className = 'doc-thumb doc-thumb-ph';
-      ph.textContent = '🗎';
+      ph.innerHTML = typeIconSvg(o.docType);
       left.appendChild(ph);
     }
     const info = document.createElement('div');
     info.className = 'doc-info';
-    // Guias: NF + fornecedor identificam o documento melhor que a descrição.
-    const meta = [
-      o.nfNumero ? 'NF ' + o.nfNumero : '',
-      o.fornecedorNome || '',
-      o.descricao || '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
+    // No SAC o tipo é o que identifica o documento; data e descrição vêm abaixo.
+    const meta = [dataBr(o.docDate) || '—', o.descricao || ''].filter(Boolean).join(' · ');
     info.innerHTML =
-      `<strong>${esc(o.docDate || '—')}</strong> · ${esc(o.typeLabel || '')}` +
+      `<strong>${esc(o.typeLabel || labelOf(o.docType))}</strong>` +
       `<div class="meta-line">${esc(meta)}</div>`;
     left.appendChild(info);
     div.appendChild(left);
@@ -244,10 +270,9 @@
           docRow({
             thumb: null,
             docDate: d.docDate,
+            docType: d.docType,
             typeLabel: d.docTypeLabel || labelOf(d.docType),
             descricao: d.descricao,
-            nfNumero: d.nfNumero,
-            fornecedorNome: d.fornecedorNome,
             onOpen: () => openDoc(d.key),
           }),
         );
@@ -263,10 +288,9 @@
           docRow({
             thumb: d.thumb,
             docDate: d.docDate,
+            docType: d.docType,
             typeLabel: labelOf(d.docType),
             descricao: d.descricao,
-            nfNumero: d.nfNumero,
-            fornecedorNome: d.fornecedorNome,
             onOpen: () => openDoc(d.key),
           }),
         );
@@ -286,15 +310,44 @@
     }
   }
 
-  // ---------- modo de captura (escolhido ao iniciar) ----------
+  // ---------- escolha do tipo (cards da home) ----------
+  // Grade de tipos: é a ação principal do app. Tocar num card leva à folha de modo
+  // e daí à câmera, já com o tipo definido — o usuário escolhe com o papel na mão.
+  function renderTypeGrid() {
+    const grid = $('typeGrid');
+    grid.innerHTML = '';
+    TYPES.forEach((t) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'type-card' + (t.retorno ? ' is-retorno' : '');
+      b.innerHTML =
+        `<span class="type-ico">${typeIconSvg(t.id)}</span>` +
+        `<span class="type-name">${esc(t.label)}</span>` +
+        `<span class="type-hint">${esc(t.hint || '')}</span>`;
+      b.addEventListener('click', () => askCaptureMode(t.id));
+      grid.appendChild(b);
+    });
+  }
+
+  // ---------- modo de captura (escolhido após o tipo) ----------
   // 'onePdf' = todas as fotos da sessão viram 1 PDF; 'perPage' = 1 PDF por foto.
   let captureMode = 'perPage';
   let captureSession = null; // agrupa as fotos 'onePdf' de uma mesma sessão
+  let captureType = ''; // tipo escolhido na home; vai junto de cada captura
 
   function updateCamModeChip() {
     const chip = $('camModeChip');
     chip.hidden = false;
-    chip.textContent = captureMode === 'onePdf' ? '📄 1 PDF (multipágina)' : '🗂️ 1 PDF por página';
+    const modo = captureMode === 'onePdf' ? '1 PDF' : '1 por página';
+    chip.textContent = `${labelOf(captureType)} · ${modo}`;
+  }
+  function askCaptureMode(typeId) {
+    captureType = typeId;
+    const t = typeOf(typeId);
+    $('modeSheetType').textContent = t ? t.label : typeId;
+    $('modeSheetUse').setAttribute('href', '#' + (t ? t.icon : 'ico-nota-fiscal'));
+    $('modeSheetIco').classList.toggle('is-retorno', !!(t && t.retorno));
+    $('modeSheet').hidden = false;
   }
   function startCaptureMode(mode) {
     captureMode = mode;
@@ -303,7 +356,6 @@
     updateCamModeChip();
     showScreen('camera');
   }
-  $('novaCapturaBtn').addEventListener('click', () => ($('modeSheet').hidden = false));
   $('modeOnePdf').addEventListener('click', () => startCaptureMode('onePdf'));
   $('modePerPage').addEventListener('click', () => startCaptureMode('perPage'));
   $('modeCancel').addEventListener('click', () => ($('modeSheet').hidden = true));
@@ -333,12 +385,6 @@
     fd.append('docDate', rec.docDate);
     fd.append('clientId', rec.clientId);
     if (rec.descricao) fd.append('descricao', rec.descricao);
-    // Guias: nota de compra a que o documento se refere.
-    if (rec.nfNumero) fd.append('nfNumero', rec.nfNumero);
-    if (rec.fornecedorNome) fd.append('fornecedorNome', rec.fornecedorNome);
-    if (rec.chaveNfe) fd.append('chaveNfe', rec.chaveNfe);
-    if (rec.fornecedorCnpj) fd.append('fornecedorCnpj', rec.fornecedorCnpj);
-    if (rec.forCodigo) fd.append('forCodigo', rec.forCodigo);
     let resp;
     try {
       resp = await fetch(API + '/api/documents', { method: 'POST', body: fd });
@@ -363,8 +409,6 @@
       docType: rec.docType,
       docDate: rec.docDate,
       descricao: rec.descricao || '',
-      nfNumero: rec.nfNumero || '',
-      fornecedorNome: rec.fornecedorNome || '',
       thumb: rec.thumb || '',
       uploadedAt: (resp && resp.uploadedAt) || new Date().toISOString(),
     });
@@ -733,6 +777,7 @@
       createdAt: Date.now(),
       mode: captureMode, // 'onePdf' | 'perPage'
       session: captureSession, // agrupa as fotos 'onePdf' da mesma sessão
+      docType: captureType, // tipo escolhido na home; preenche a análise depois
     };
     await CaptureQueue.add(item);
     await refreshQueueIcon();
@@ -908,16 +953,19 @@
 
   // Monta os documentos a partir da fila: fotos 'onePdf' da mesma sessão viram um
   // único documento (multipágina, na ordem); as demais ('perPage' ou antigas) vão sozinhas.
+  // O tipo entra na chave junto da sessão: um PDF multipágina nunca mistura
+  // documentos de tipos diferentes, mesmo que a fila tenha capturas antigas.
   function groupCaptures(caps) {
     const groups = [];
     const bySession = {};
     for (const c of caps) {
       if (c.mode === 'onePdf' && c.session) {
-        if (!bySession[c.session]) {
-          bySession[c.session] = [];
-          groups.push(bySession[c.session]);
+        const key = c.session + '|' + (c.docType || '');
+        if (!bySession[key]) {
+          bySession[key] = [];
+          groups.push(bySession[key]);
         }
-        bySession[c.session].push(c);
+        bySession[key].push(c);
       } else {
         groups.push([c]); // 1 PDF por página
       }
@@ -960,7 +1008,9 @@
     $('previewFilter').value = currentFilter;
     $('anDate').value = todayCuiaba();
     $('anDesc').value = '';
-    resetNfCampos();
+    // Tipo já vem da escolha feita na home (segue editável, para corrigir engano).
+    const tipoDaCaptura = group[0] && group[0].docType;
+    $('anTipo').value = typeOf(tipoDaCaptura) ? tipoDaCaptura : '';
     updateTipoUi();
     showAnState('preview');
     renderPageStrip();
@@ -1217,171 +1267,29 @@
   });
 
   // =======================================================================
-  //  NOTA DE COMPRA (guia de ICMS-ST): busca no Postgres + preenchimento
+  //  TIPO DO DOCUMENTO (na análise)
   // =======================================================================
-  // Guarda o que veio da BUSCA. Editar o campo à mão zera o vínculo correspondente
-  // (chave/CNPJ de outra nota gravados junto de um número digitado seriam mentira).
-  let nfVinculo = { chaveNfe: '', fornecedorCnpj: '', forCodigo: '' };
-
-  function resetNfCampos() {
-    nfVinculo = { chaveNfe: '', fornecedorCnpj: '', forCodigo: '' };
-    $('anNfBusca').value = '';
-    $('anNfNumero').value = '';
-    $('anNfFornecedor').value = '';
-    $('anNfStatus').textContent = '';
-    hideLookup('anNfResults');
-    hideLookup('anFornResults');
-  }
-
-  // Mostra/esconde o bloco da nota conforme o tipo escolhido.
+  // O tipo já chega escolhido da home. Aqui só ajustamos o texto de exemplo da
+  // descrição para o vocabulário de cada tipo do SAC.
+  const DESC_PLACEHOLDER = {
+    'nota-fiscal': 'Ex.: pedido 1234, cliente…',
+    'cupom-fiscal': 'Ex.: venda balcão, caixa 2…',
+    ni: 'Ex.: conferência, remessa…',
+    'nota-devolucao': 'Ex.: nota de origem, motivo…',
+    'ni-devolucao': 'Ex.: motivo da devolução…',
+    'ni-garantia': 'Ex.: peça, nº de série…',
+  };
   function updateTipoUi() {
-    const tipo = $('anTipo').value;
-    const precisaNf = requiresNf(tipo);
-    $('anNfBlock').hidden = !precisaNf;
-    // Prévia menor enquanto os campos da nota estão em tela (ver .nf-mode no CSS).
-    $('anPreviewPanel').classList.toggle('nf-mode', precisaNf);
-    $('anDesc').placeholder =
-      tipo === 'conta-consumo'
-        ? 'Ex.: telefone, internet, energia…'
-        : 'Ex.: conta de luz, recibo…';
+    $('anDesc').placeholder = DESC_PLACEHOLDER[$('anTipo').value] || 'Ex.: pedido, cliente…';
   }
   $('anTipo').addEventListener('change', updateTipoUi);
-
-  function hideLookup(id) {
-    const el = $(id);
-    el.hidden = true;
-    el.innerHTML = '';
-  }
-  function renderLookup(id, items, onPick) {
-    const el = $(id);
-    el.innerHTML = '';
-    if (!items.length) {
-      el.hidden = true;
-      return;
-    }
-    items.forEach((it) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'lookup-item';
-      b.innerHTML = it.html;
-      b.addEventListener('click', () => onPick(it.data));
-      el.appendChild(b);
-    });
-    el.hidden = false;
-  }
 
   const esc = (s) =>
     String(s == null ? '' : s).replace(
       /[&<>"]/g,
       (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
     );
-  const brl = (n) =>
-    Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const dataBr = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
-
-  // Busca com atraso (o usuário ainda está digitando) e cancelando a anterior.
-  function debounced(fn, ms) {
-    let t = null;
-    return function (...args) {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(null, args), ms);
-    };
-  }
-
-  let nfAbort = null;
-  async function buscarNf() {
-    const q = $('anNfBusca').value.trim();
-    if (q.length < 2) {
-      hideLookup('anNfResults');
-      $('anNfStatus').textContent = '';
-      return;
-    }
-    if (nfAbort) nfAbort.abort();
-    nfAbort = new AbortController();
-    $('anNfStatus').textContent = 'Buscando…';
-    const p = new URLSearchParams({ q, limit: '15' });
-    if ($('anNfTodas').checked) p.set('todas', '1');
-    try {
-      const r = await fetch(API + '/api/nfe-compra?' + p, { signal: nfAbort.signal });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
-      const { notas } = await r.json();
-      $('anNfStatus').textContent = notas.length
-        ? ''
-        : 'Nenhuma nota encontrada — marque “buscar em todas” ou digite à mão.';
-      renderLookup(
-        'anNfResults',
-        notas.map((n) => ({
-          data: n,
-          html:
-            `<strong>NF ${esc(n.numero)}<span class="nf-tag${n.foraDoEstado ? '' : ' nf-tag-mt'}">` +
-            `${esc(n.uf)}</span></strong>` +
-            `<span class="lookup-meta">${esc(n.emitente)}<br>` +
-            `${dataBr(n.dataEmissao)} · ${brl(n.valorTotal)}` +
-            `${n.tipoImposto ? ' · ' + esc(n.tipoImposto) : ''}</span>`,
-        })),
-        (n) => {
-          $('anNfNumero').value = n.numero;
-          $('anNfFornecedor').value = n.emitente;
-          nfVinculo = { chaveNfe: n.chaveNfe, fornecedorCnpj: n.cnpjEmitente, forCodigo: '' };
-          $('anNfBusca').value = '';
-          hideLookup('anNfResults');
-          hideLookup('anFornResults');
-          $('anNfStatus').textContent = `Nota ${n.numero} — ${n.emitente} (${n.uf}).`;
-        },
-      );
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-      hideLookup('anNfResults');
-      $('anNfStatus').textContent = 'Busca indisponível — preencha à mão.';
-    }
-  }
-
-  let fornAbort = null;
-  async function buscarFornecedor() {
-    const q = $('anNfFornecedor').value.trim();
-    // A nota escolhida já trouxe o fornecedor certo; não sugerir por cima dela.
-    if (nfVinculo.chaveNfe || q.length < 3) {
-      hideLookup('anFornResults');
-      return;
-    }
-    if (fornAbort) fornAbort.abort();
-    fornAbort = new AbortController();
-    try {
-      const r = await fetch(API + '/api/fornecedores?q=' + encodeURIComponent(q) + '&limit=8', {
-        signal: fornAbort.signal,
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const { fornecedores } = await r.json();
-      renderLookup(
-        'anFornResults',
-        fornecedores.map((f) => ({
-          data: f,
-          html: `<strong>${esc(f.nome)}</strong><span class="lookup-meta">cód. ${esc(f.forCodigo)}</span>`,
-        })),
-        (f) => {
-          $('anNfFornecedor').value = f.nome;
-          nfVinculo.forCodigo = String(f.forCodigo);
-          nfVinculo.fornecedorCnpj = '';
-          hideLookup('anFornResults');
-        },
-      );
-    } catch (err) {
-      if (err.name !== 'AbortError') hideLookup('anFornResults');
-    }
-  }
-
-  $('anNfBusca').addEventListener('input', debounced(buscarNf, 350));
-  $('anNfTodas').addEventListener('change', buscarNf);
-  $('anNfFornecedor').addEventListener('input', debounced(buscarFornecedor, 350));
-  // Digitar por cima do que veio da busca desfaz o vínculo daquele campo.
-  $('anNfNumero').addEventListener('input', () => {
-    nfVinculo.chaveNfe = '';
-  });
-  $('anNfFornecedor').addEventListener('input', () => {
-    nfVinculo.chaveNfe = '';
-    nfVinculo.fornecedorCnpj = '';
-    nfVinculo.forCodigo = '';
-  });
 
   // ---- PDF (1 página) ----
   const PDF_MAX_SIDE = 3500;
@@ -1425,11 +1333,6 @@
     if (!docType) return toast('Selecione o tipo.', 'err');
     if (!docDate) return toast('Informe a data.', 'err');
     const descricao = $('anDesc').value.trim();
-    // Guia de ICMS-ST: sem NF + fornecedor o PDF não serve para nada depois.
-    const nfNumero = requiresNf(docType) ? $('anNfNumero').value.replace(/\D/g, '') : '';
-    const fornecedorNome = requiresNf(docType) ? $('anNfFornecedor').value.trim() : '';
-    if (requiresNf(docType) && !nfNumero) return toast('Informe o número da nota fiscal.', 'err');
-    if (requiresNf(docType) && !fornecedorNome) return toast('Informe o fornecedor.', 'err');
     const filter = $('previewFilter').value;
     const btn = $('anConfirmBtn');
     btn.disabled = true;
@@ -1448,15 +1351,8 @@
         docType,
         docDate,
         descricao,
-        nfNumero,
-        fornecedorNome,
-        chaveNfe: nfNumero ? nfVinculo.chaveNfe : '',
-        fornecedorCnpj: fornecedorNome ? nfVinculo.fornecedorCnpj : '',
-        forCodigo: fornecedorNome ? nfVinculo.forCodigo : '',
         thumb: makeThumb(canvases[0]),
-        fileName: `${docDate}_${docType}${nfNumero ? `_nf${nfNumero}` : ''}${
-          nPag > 1 ? `_${nPag}p` : ''
-        }.pdf`,
+        fileName: `${docDate}_${docType}${nPag > 1 ? `_${nPag}p` : ''}.pdf`,
         createdAt: Date.now(),
       };
       currentFilter = filter;
@@ -1483,38 +1379,23 @@
     }
   });
 
-  // ---------- config ----------
-  async function loadConfig() {
-    const fill = (sel, withAll) => {
-      const el = $(sel);
-      if (withAll) el.appendChild(new Option('Todos os tipos', ''));
-    };
-    let types = [
-      { id: 'nao-fiscal', label: 'Nao fiscal' },
-      { id: 'recibo', label: 'Recibo' },
-      { id: 'cupom-fiscal', label: 'Cupom fiscal' },
-      { id: 'conta-consumo', label: 'Conta de consumo' },
-      { id: 'guia-icms-st', label: 'Guia ICMS-ST (fora do estado)', requiresNf: true },
-      { id: 'comprovante-outros', label: 'Comprovante/Outros' },
-    ];
-    try {
-      const cfg = await fetch(API + '/api/config').then((r) => r.json());
-      if (cfg.docTypes && cfg.docTypes.length) types = cfg.docTypes;
-    } catch {
-      /* usa fallback */
-    }
-    TYPES.length = 0;
-    types.forEach((t) => TYPES.push(t));
-    types.forEach((t) => {
-      $('anTipo').appendChild(new Option(t.label, t.id));
+  // ---------- tipos nos <select> ----------
+  // A lista TYPES é a fonte da verdade do app (não vem mais de /api/config):
+  // são os tipos do SAC e precisam bater com o que o backend aceita em docType.
+  function fillTypeSelects() {
+    const an = $('anTipo');
+    an.appendChild(new Option('Selecione…', ''));
+    TYPES.forEach((t) => {
+      an.appendChild(new Option(t.label, t.id));
       $('fTipo').appendChild(new Option(t.label, t.id));
     });
   }
 
   // ---------- init ----------
-  async function init() {
+  function init() {
     updateNet();
-    await loadConfig();
+    fillTypeSelects();
+    renderTypeGrid();
     showScreen('home');
   }
   init();

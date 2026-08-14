@@ -75,4 +75,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`[escaner-fiscal-app] estatico em http://0.0.0.0:${PORT}`));
+server.listen(PORT, () => console.log(`[scan-sac-app] estatico em http://0.0.0.0:${PORT}`));

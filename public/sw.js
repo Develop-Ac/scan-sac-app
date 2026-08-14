@@ -1,6 +1,6 @@
-// Service worker do Escaner Fiscal (app de scan).
+// Service worker do Scan SAC (app de scan do atendimento ao cliente).
 // Suba CACHE_VERSION a cada mudanca de assets para forcar atualizacao nos tablets.
-const CACHE_VERSION = 'escaner-fiscal-v33';
+const CACHE_VERSION = 'scan-sac-v34';
 
 const APP_SHELL = [
   './',

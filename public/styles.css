@@ -52,7 +52,13 @@
 
 /* Sprite de <symbol>: fica no DOM só para o <use> referenciar. */
 .svg-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
-.svg-sprite symbol { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* O conteúdo clonado por <use> vive numa shadow tree: seletores do documento não
+   alcançam lá dentro. Só propriedades HERDADAS passam — então o traço tem de ser
+   declarado no <svg> de fora, nunca no <symbol>. */
+.type-ico svg, .queue-doc svg, .sheet-ico svg, .doc-thumb-ph svg {
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
 
 html {
   /* Trava o zoom por duplo-toque (iPhone) sem bloquear a rolagem. */
@@ -132,8 +138,10 @@ h1, h2, h3, h4 { font-family: var(--ff-head); letter-spacing: -0.015em; }
 .hero p { margin: 0; color: var(--muted); font-size: 13px; }
 
 /* --- Grade dos tipos de documento (ação principal do app) --- */
+/* minmax(0,1fr): sem isso a trilha `1fr` tem minimo = min-content do card e um
+   rotulo comprido empurra a grade para fora da tela no celular estreito. */
 .type-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px;
 }
 .type-card {
   position: relative; overflow: hidden;
@@ -157,7 +165,7 @@ h1, h2, h3, h4 { font-family: var(--ff-head); letter-spacing: -0.015em; }
   background: var(--green-dim); color: var(--green);
   display: flex; align-items: center; justify-content: center;
 }
-.type-card .type-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.type-card .type-ico svg { width: 22px; height: 22px; }
 .type-card .type-name {
   font-family: var(--ff-head); font-weight: 700; font-size: 14px; line-height: 1.2;
 }
@@ -231,7 +239,7 @@ h1, h2, h3, h4 { font-family: var(--ff-head); letter-spacing: -0.015em; }
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden;
 }
 .queue-doc { display: flex; }
-.queue-doc svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.queue-doc svg { width: 21px; height: 21px; }
 .queue-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .queue-badge {
   position: absolute; top: -6px; right: -6px; background: var(--green); color: #0a1120;
@@ -252,10 +260,9 @@ h1, h2, h3, h4 { font-family: var(--ff-head); letter-spacing: -0.015em; }
   border-radius: 7px; background: var(--card-2); flex-shrink: 0;
 }
 .doc-thumb-ph { display: flex; align-items: center; justify-content: center; color: var(--muted-2); }
-.doc-thumb-ph svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.doc-thumb-ph svg { width: 20px; height: 20px; }
 .doc-info { min-width: 0; }
 .doc-info strong { font-family: var(--ff-head); font-size: 13px; }
-.doc-info .doc-type { color: var(--muted); font-weight: 500; }
 .doc-tag { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
 .tag-warn { background: var(--warn-dim); color: var(--warn); }
 .meta-line { color: var(--muted-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -449,7 +456,9 @@ h1, h2, h3, h4 { font-family: var(--ff-head); letter-spacing: -0.015em; }
   background: var(--green-dim); color: var(--green);
   display: flex; align-items: center; justify-content: center;
 }
-.sheet-ico svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.sheet-ico svg { width: 24px; height: 24px; }
+/* Devolução/garantia: mesma cor âmbar dos cards de retorno. */
+.sheet-ico.is-retorno { background: var(--warn-dim); color: var(--warn); }
 .sheet-head-txt { min-width: 0; }
 .sheet-head-txt strong { display: block; font-family: var(--ff-head); font-size: 16px; }
 .sheet-head-txt small { color: var(--muted); font-size: 12px; }

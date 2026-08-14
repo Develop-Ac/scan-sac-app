@@ -1,7 +1,7 @@
 {
-  "name": "escaner-fiscal-app",
+  "name": "scan-sac-app",
   "version": "1.0.0",
-  "description": "PWA de scan de documentos (camera, bordas, filtro, PDF) que envia ao escaner-fiscal-backend e mostra os enviados.",
+  "description": "PWA de scan do SAC (camera, bordas, filtro, PDF): nota fiscal, cupom, N.I e devolucoes/garantia enviados ao backend.",
   "type": "module",
   "private": true,
   "engines": {
