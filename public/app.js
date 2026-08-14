@@ -271,7 +271,9 @@
             thumb: null,
             docDate: d.docDate,
             docType: d.docType,
-            typeLabel: d.docTypeLabel || labelOf(d.docType),
+            // Rótulo nosso quando o tipo é conhecido; o do servidor só cobre
+            // documentos antigos/de outro app que não estão em TYPES.
+            typeLabel: typeOf(d.docType) ? labelOf(d.docType) : d.docTypeLabel || d.docType,
             descricao: d.descricao,
             onOpen: () => openDoc(d.key),
           }),
