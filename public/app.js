@@ -249,8 +249,15 @@
     return div;
   }
 
+  // Bucket dos documentos deste app. Sem isto o /api/documents devolve fiscal + SAC
+  // juntos e a listagem mostraria PDF do Movimento Fiscal aqui dentro.
+  // Usamos o apelido 'sac' (e não 'pdf-sac'): o backend resolve para o MINIO_BUCKET_SAC
+  // vigente, então continua certo se o bucket for renomeado por variável de ambiente.
+  const BUCKET = 'sac';
+
   function enviadosQuery() {
     const p = new URLSearchParams();
+    p.set('bucket', BUCKET);
     if ($('fFrom').value) p.set('from', $('fFrom').value);
     if ($('fTo').value) p.set('to', $('fTo').value);
     if ($('fTipo').value) p.set('docType', $('fTipo').value);
@@ -275,7 +282,7 @@
             // documentos antigos/de outro app que não estão em TYPES.
             typeLabel: typeOf(d.docType) ? labelOf(d.docType) : d.docTypeLabel || d.docType,
             descricao: d.descricao,
-            onOpen: () => openDoc(d.key),
+            onOpen: () => openDoc(d.key, d.bucket),
           }),
         );
       });
@@ -293,18 +300,20 @@
             docType: d.docType,
             typeLabel: labelOf(d.docType),
             descricao: d.descricao,
-            onOpen: () => openDoc(d.key),
+            onOpen: () => openDoc(d.key, d.bucket),
           }),
         );
       });
     }
   }
 
-  async function openDoc(key) {
+  // `bucket` vem do item da listagem: a URL pre-assinada é por bucket e, sem ele, o
+  // backend chuta pelo Origin — o que abre o bucket errado quando a origem não é
+  // reconhecida (dev, proxy que não repassa o cabeçalho).
+  async function openDoc(key, bucket) {
     try {
-      const { url } = await fetch(API + '/api/documents/url?key=' + encodeURIComponent(key)).then((r) =>
-        r.json(),
-      );
+      const q = '?key=' + encodeURIComponent(key) + '&bucket=' + encodeURIComponent(bucket || BUCKET);
+      const { url } = await fetch(API + '/api/documents/url' + q).then((r) => r.json());
       if (url) window.open(url, '_blank');
       else throw new Error('sem url');
     } catch {
@@ -408,6 +417,7 @@
   async function recordSent(rec, resp) {
     await SentDocs.add({
       key: (resp && resp.key) || rec.clientId,
+      bucket: (resp && resp.bucket) || '', // p/ abrir o PDF certo pelo histórico offline
       docType: rec.docType,
       docDate: rec.docDate,
       descricao: rec.descricao || '',
