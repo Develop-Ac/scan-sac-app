@@ -1293,6 +1293,20 @@
     );
   const dataBr = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 
+  // Texto livre -> pedaço seguro de nome de arquivo: sem acento, sem espaço, sem
+  // caractere que o Windows/MinIO recusem. Mesma regra do slugify do backend.
+  // Corta em 60 p/ a descrição não dominar o nome (o campo aceita até 120).
+  function slugify(s, max = 60) {
+    const out = String(s || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // marcas de acento soltas pelo NFD
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toLowerCase()
+      .slice(0, max);
+    return out.replace(/_+$/, ''); // o corte pode ter deixado "_" solto no fim
+  }
+
   // ---- PDF (1 página) ----
   const PDF_MAX_SIDE = 3500;
   function toJpegDataUrl(cnv, q) {
@@ -1354,7 +1368,12 @@
         docDate,
         descricao,
         thumb: makeThumb(canvases[0]),
-        fileName: `${docDate}_${docType}${nPag > 1 ? `_${nPag}p` : ''}.pdf`,
+        // A descrição entra no nome p/ achar o PDF pelo nome depois (na exportação
+        // em lote e no download avulso, onde só o nome do arquivo aparece).
+        fileName:
+          [docDate, docType, slugify(descricao), nPag > 1 ? `${nPag}p` : '']
+            .filter(Boolean)
+            .join('_') + '.pdf',
         createdAt: Date.now(),
       };
       currentFilter = filter;

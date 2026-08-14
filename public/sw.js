@@ -1,6 +1,6 @@
 // Service worker do Scan SAC (app de scan do atendimento ao cliente).
 // Suba CACHE_VERSION a cada mudanca de assets para forcar atualizacao nos tablets.
-const CACHE_VERSION = 'scan-sac-v34';
+const CACHE_VERSION = 'scan-sac-v35';
 
 const APP_SHELL = [
   './',
