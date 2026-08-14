@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#070D18" />
+    <title>Scan SAC</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" />
+    <!-- iOS: nome + ícone ao adicionar na tela inicial -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Scan SAC" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png" />
+    <link rel="stylesheet" href="fonts/fonts.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Sprite de ícones dos tipos de documento (usado via <use href="#ico-..."> ). -->
+    <svg class="svg-sprite" aria-hidden="true" focusable="false">
+      <symbol id="ico-nota-fiscal" viewBox="0 0 24 24">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5" />
+        <path d="M9 13h6M9 17h4" />
+      </symbol>
+      <symbol id="ico-cupom-fiscal" viewBox="0 0 24 24">
+        <path d="M6 3h12v17.5l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4z" />
+        <path d="M9.5 8.5h5M9.5 12.5h5" />
+      </symbol>
+      <symbol id="ico-ni" viewBox="0 0 24 24">
+        <path d="M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="2.6" width="6" height="3.8" rx="1.2" />
+        <path d="M9 12h6M9 16h4" />
+      </symbol>
+      <symbol id="ico-nota-devolucao" viewBox="0 0 24 24">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5" />
+        <path d="M13 10.8 10.4 13.2 13 15.6" />
+        <path d="M10.4 13.2h4.1a2.4 2.4 0 0 1 0 4.8h-2.6" />
+      </symbol>
+      <symbol id="ico-ni-devolucao" viewBox="0 0 24 24">
+        <path d="M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="2.6" width="6" height="3.8" rx="1.2" />
+        <path d="M12.6 10.4 10 12.8l2.6 2.4" />
+        <path d="M10 12.8h4.1a2.4 2.4 0 0 1 0 4.8H11.5" />
+      </symbol>
+      <symbol id="ico-ni-garantia" viewBox="0 0 24 24">
+        <path d="M12 2.8 19 6v5.6c0 4.4-2.9 8.3-7 9.6-4.1-1.3-7-5.2-7-9.6V6z" />
+        <path d="m8.8 12 2.3 2.3 4.1-4.6" />
+      </symbol>
+    </svg>
+
+    <!-- ===================== HOME (escolha do tipo + enviados) ===================== -->
+    <div id="screen-home" class="screen active">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-badge"><img src="brand/ac-icone.png" alt="AC" /></span>
+          <div class="brand-text">
+            <strong>Scan SAC</strong>
+            <small>Atendimento ao Cliente</small>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <span id="netBadge" class="badge badge-on" title="Conexão">online</span>
+          <button id="queueIcon" class="queue-icon" hidden title="Documentos escaneados para analisar">
+            <span class="queue-doc">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#ico-nota-fiscal" /></svg>
+            </span>
+            <img id="queueThumb" class="queue-thumb" alt="" hidden />
+            <span id="queueBadge" class="queue-badge">0</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Balão de instalação (some após instalar/dispensar) -->
+      <div id="installBalloon" class="install-balloon" hidden>
+        <span class="install-ico"><img src="brand/ac-icone.png" alt="" /></span>
+        <div class="install-txt">
+          <strong>Instalar o Scan SAC</strong>
+          <small>Abre em tela cheia e funciona offline.</small>
+        </div>
+        <button id="installBtn" type="button" class="btn btn-primary btn-sm">Instalar</button>
+        <button id="installDismiss" type="button" class="install-x" title="Agora não">✕</button>
+      </div>
+
+      <main class="home-main">
+        <section class="hero">
+          <h1>O que você vai escanear?</h1>
+          <p>Toque no tipo do documento para abrir a câmera.</p>
+        </section>
+
+        <!-- Cards dos tipos: preenchido por app.js a partir de TYPES -->
+        <div id="typeGrid" class="type-grid"></div>
+
+        <section id="pendingSection" class="card pending-card" hidden>
+          <div class="section-head">
+            <h2>Pendentes de sincronização <span id="pendCount" class="chip chip-warn">0</span></h2>
+            <button id="syncAllBtn" class="btn btn-ghost btn-sm">Sincronizar tudo</button>
+          </div>
+          <div id="pendingList" class="doclist"></div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>Enviados</h2>
+            <button id="refreshBtn" class="btn btn-ghost btn-sm">Atualizar</button>
+          </div>
+          <div class="filters">
+            <input id="fFrom" type="date" aria-label="De" />
+            <input id="fTo" type="date" aria-label="Até" />
+            <select id="fTipo"><option value="">Todos os tipos</option></select>
+          </div>
+          <p id="enviadosStatus" class="hint"></p>
+          <div id="enviadosList" class="doclist"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ===================== CÂMERA (tela cheia) ===================== -->
+    <div id="screen-camera" class="screen fullscreen" hidden>
+      <div class="cam-stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay" class="overlay"></canvas>
+      </div>
+      <div class="cam-top">
+        <button id="camCloseBtn" class="cam-icon" title="Fechar">✕</button>
+        <span id="camModeChip" class="cam-mode-chip" hidden></span>
+        <div id="cvLoading" class="cv-loading">Carregando reconhecimento…</div>
+        <button id="camQueueBtn" class="cam-queue" hidden>
+          <img id="camQueueThumb" class="cam-queue-thumb" alt="" />
+          <span id="camQueueBadge" class="queue-badge">0</span>
+          analisar
+        </button>
+      </div>
+      <p id="camHint" class="cam-hint"></p>
+      <div class="cam-bottom">
+        <label class="cam-filter">
+          <select id="filterMode">
+            <option value="gray" selected>Cinza</option>
+            <option value="bw">P&B</option>
+            <option value="color">Cor</option>
+            <option value="none">Original</option>
+          </select>
+        </label>
+        <button id="captureBtn" class="shutter" title="Capturar"></button>
+        <div class="cam-side">
+          <label class="cam-icon" title="Enviar imagem do dispositivo">
+            🖼
+            <input id="fileInput" type="file" accept="image/*" hidden />
+          </label>
+          <label class="chk chk-cam"><input type="checkbox" id="autoToggle" checked /> Auto</label>
+          <button id="switchCamBtn" class="cam-icon" title="Trocar câmera">⇄</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== ANÁLISE (1 a 1) ===================== -->
+    <div id="screen-analysis" class="screen fullscreen" hidden>
+      <header class="an-top">
+        <button id="anCloseBtn" class="cam-icon" title="Voltar">✕</button>
+        <strong>Analisar documento</strong>
+        <span id="anProgress" class="an-progress">0/0</span>
+      </header>
+
+      <!-- PREVIEW (padrão): documento já recortado + filtro -->
+      <div id="anPreviewPanel">
+        <div class="an-preview-wrap">
+          <img id="anPreviewImg" class="an-preview-img" alt="Prévia do documento" />
+        </div>
+        <div id="anPageStrip" class="an-pagestrip" hidden></div>
+        <div class="an-editctrls">
+          <label class="select-inline">
+            Filtro
+            <select id="previewFilter">
+              <option value="gray">Cinza</option>
+              <option value="bw">P&B</option>
+              <option value="color">Cor</option>
+              <option value="none">Original</option>
+            </select>
+          </label>
+          <button id="anEditBtn" class="btn btn-ghost btn-sm" type="button">✎ Editar bordas</button>
+        </div>
+        <div class="an-form">
+          <div class="grid-2">
+            <div class="field">
+              <label for="anDate">Data do documento *</label>
+              <input id="anDate" type="date" />
+            </div>
+            <div class="field">
+              <label for="anTipo">Tipo *</label>
+              <select id="anTipo"></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="anDesc">Descrição (opcional)</label>
+            <input id="anDesc" type="text" maxlength="120" placeholder="Ex.: pedido 1234, cliente…" />
+          </div>
+        </div>
+        <div class="an-actions">
+          <button id="anDiscardBtn" class="btn btn-ghost btn-danger">Descartar</button>
+          <button id="anConfirmBtn" class="btn btn-primary btn-lg">Confirmar e enviar</button>
+        </div>
+      </div>
+
+      <!-- EDIÇÃO (pontos): só ao tocar "Editar bordas" -->
+      <div id="anEditPanel" hidden>
+        <p class="an-edit-hint">Arraste os cantos para enquadrar. Use “Detectar” ou “Tudo”.</p>
+        <div class="editor-wrap">
+          <canvas id="editorCanvas" class="editor-canvas"></canvas>
+        </div>
+        <div class="an-editctrls">
+          <button id="detectBtn" class="btn btn-ghost btn-sm" type="button">Detectar</button>
+          <button id="selectAllBtn" class="btn btn-ghost btn-sm" type="button">Tudo</button>
+        </div>
+        <div class="an-actions">
+          <button id="anEditCancelBtn" class="btn btn-ghost">Cancelar</button>
+          <button id="anEditApplyBtn" class="btn btn-primary btn-lg">Aplicar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== ESCOLHA DE MODO (após escolher o tipo) ===================== -->
+    <div id="modeSheet" class="sheet-backdrop" hidden>
+      <div class="sheet">
+        <div class="sheet-head">
+          <span id="modeSheetIco" class="sheet-ico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use id="modeSheetUse" href="#ico-nota-fiscal" /></svg>
+          </span>
+          <div class="sheet-head-txt">
+            <strong id="modeSheetType">Nota Fiscal</strong>
+            <small>Como salvar as capturas?</small>
+          </div>
+        </div>
+        <button id="modeOnePdf" class="mode-opt" type="button">
+          <span class="mode-ico">📄</span>
+          <span class="mode-txt">
+            <strong>Várias páginas — 1 PDF</strong>
+            <small>Todas as fotos desta captura viram um único documento.</small>
+          </span>
+        </button>
+        <button id="modePerPage" class="mode-opt" type="button">
+          <span class="mode-ico">🗂️</span>
+          <span class="mode-txt">
+            <strong>1 PDF por página</strong>
+            <small>Cada foto vira um documento separado.</small>
+          </span>
+        </button>
+        <button id="modeCancel" class="btn btn-ghost btn-block" type="button">Cancelar</button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <!-- libs vendoradas (offline) -->
+    <script src="vendor/opencv.js" async></script>
+    <script src="vendor/jscanify.min.js"></script>
+    <script src="vendor/jspdf.umd.min.js"></script>
+    <script src="config.js"></script>
+    <script src="db.js"></script>
+    <script src="scan.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

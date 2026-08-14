@@ -1,0 +1,4 @@
+/* AC Acessorios - fontes da marca (variable, subset latin, vendoradas p/ funcionar offline) */
+/* url() e relativo a ESTE arquivo (ja em /fonts/) */
+@font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url('inter.woff2') format('woff2');}
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:600 800;font-display:swap;src:url('montserrat.woff2') format('woff2');}

@@ -1,0 +1,14 @@
+{
+  "name": "escaner-fiscal-app",
+  "version": "1.0.0",
+  "description": "PWA de scan de documentos (camera, bordas, filtro, PDF) que envia ao escaner-fiscal-backend e mostra os enviados.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "build:icons": "node scripts/generate-icons.mjs"
+  }
+}

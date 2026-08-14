@@ -1,0 +1,518 @@
+/* =========================================================================
+   Scan SAC — tema escuro "mesa de scanner".
+   O app inteiro vive no escuro: a home, a análise e a câmera usam o mesmo
+   fundo, então abrir a câmera não dá o "flash" de tela clara -> preta.
+   Marca AC Acessórios: verde = ação, azul = seleção/destaque.
+   ========================================================================= */
+:root {
+  /* Marca AC Acessórios */
+  --green: #a6ce2e;
+  --green-d: #8ab41c;
+  --green-dim: rgba(166, 206, 46, 0.14);
+  --blue: #4c86ee; /* azul AC clareado p/ contraste sobre fundo escuro */
+  --blue-d: #15479e;
+  --blue-dim: rgba(76, 134, 238, 0.16);
+
+  /* Superfícies (do mais fundo para o mais elevado) */
+  --bg: #070d18;
+  --bg-2: #0b1220;
+  --card: #101a2c;
+  --card-2: #16233a;
+  --ink: #0a1120; /* barras de cromo */
+  --border: #21304a;
+  --border-2: #2c3d5c;
+
+  /* Texto */
+  --text: #e9eff8;
+  --muted: #8ba0bf;
+  --muted-2: #63758f;
+
+  /* Estado */
+  --danger: #f2686b;
+  --danger-dim: rgba(242, 104, 107, 0.14);
+  --warn: #f0ad3c;
+  --warn-dim: rgba(240, 173, 60, 0.15);
+  --ok: #6ea800;
+
+  --ff-head: 'Montserrat', system-ui, -apple-system, sans-serif;
+  --ff-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  /* aliases retrocompatíveis com o restante do CSS */
+  --teal: var(--blue);
+  --teal-d: var(--blue-d);
+  --amber: var(--warn);
+}
+
+* { box-sizing: border-box; }
+/* O atributo [hidden] sempre vence classes com display:flex/grid/etc.
+   Sem isto, .install-balloon/.queue-icon (display:flex) ignoram o hidden e ficam sempre visíveis. */
+[hidden] { display: none !important; }
+
+/* Sprite de <symbol>: fica no DOM só para o <use> referenciar. */
+.svg-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.svg-sprite symbol { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+html {
+  /* Trava o zoom por duplo-toque (iPhone) sem bloquear a rolagem. */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  /* Postura de app: o documento NAO rola nem estica. Sem isso o arrasto puxa a
+     pagina inteira e aparece a faixa branca do navegador atras do app.
+     A rolagem vive nos conteineres internos (.home-main, #screen-analysis). */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+  color-scheme: dark; /* controles nativos (date, select, scrollbar) já nascem escuros */
+}
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--ff-body);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  /* A safe-area NAO entra aqui: com height:100% + overflow:hidden ela encurtaria o
+     app inteiro e exporia uma faixa embaixo. Vai no padding de quem rola. */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* Sem menu de long-press na interface (o texto dos campos segue selecionavel). */
+  -webkit-touch-callout: none;
+}
+/* Cromo do app nao seleciona; conteudo de dados sim (dá p/ copiar descrição, data). */
+.topbar, .cam-top, .cam-bottom, .an-top, .an-actions, .an-editctrls,
+.btn, .mode-opt, .sheet, .doc-tag, .chip, .badge, .type-card, .hero {
+  -webkit-user-select: none;
+  user-select: none;
+}
+img { -webkit-user-drag: none; }
+h1, h2, h3, h4 { font-family: var(--ff-head); letter-spacing: -0.015em; }
+
+/* ===================== Topbar ===================== */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--ink); color: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 9px 14px; padding-top: calc(9px + env(safe-area-inset-top));
+  position: sticky; top: 0; z-index: 20;
+}
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.brand-badge {
+  width: 40px; height: 40px; border-radius: 11px; background: #fff; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; padding: 5px; box-shadow: var(--shadow);
+}
+.brand-badge img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.brand-text { min-width: 0; }
+.brand-text strong { display: block; font-family: var(--ff-head); font-weight: 700; font-size: 15px; line-height: 1.1; }
+.brand-text small { color: var(--muted); font-size: 11px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.badge {
+  font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.badge::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.badge-on { background: var(--green-dim); color: var(--green); }
+.badge-off { background: var(--danger-dim); color: var(--danger); }
+
+/* ===================== Home ===================== */
+/* Home: barra fixa em cima, so a lista rola. `contain` impede que a rolagem
+   chegue ao fim e "vaze" para o documento (o efeito elastico do navegador). */
+#screen-home { display: flex; flex-direction: column; height: 100%; background: var(--bg); }
+.home-main {
+  padding: 16px 14px; padding-bottom: calc(18px + env(safe-area-inset-bottom));
+  max-width: 640px; margin: 0 auto; width: 100%;
+  flex: 1; min-height: 0; overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+}
+
+.hero { margin: 2px 0 14px; }
+.hero h1 { margin: 0 0 4px; font-size: 21px; font-weight: 700; }
+.hero p { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* --- Grade dos tipos de documento (ação principal do app) --- */
+.type-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
+}
+.type-card {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+  text-align: left; min-height: 116px; padding: 14px 13px;
+  background: linear-gradient(160deg, var(--card-2), var(--card));
+  border: 1px solid var(--border); border-radius: 16px;
+  color: var(--text); font-family: inherit; cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+/* Filete verde na borda superior: dá a "assinatura" da marca sem poluir o card. */
+.type-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--green), transparent 75%);
+  opacity: 0.55;
+}
+.type-card:active { transform: scale(0.975); border-color: var(--green); }
+.type-card .type-ico {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  background: var(--green-dim); color: var(--green);
+  display: flex; align-items: center; justify-content: center;
+}
+.type-card .type-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.type-card .type-name {
+  font-family: var(--ff-head); font-weight: 700; font-size: 14px; line-height: 1.2;
+}
+.type-card .type-hint { color: var(--muted-2); font-size: 11px; line-height: 1.35; }
+
+/* Tipos de devolução/garantia: filete âmbar, para separar do fluxo de entrada. */
+.type-card.is-retorno::before { background: linear-gradient(90deg, var(--warn), transparent 75%); }
+.type-card.is-retorno .type-ico { background: var(--warn-dim); color: var(--warn); }
+.type-card.is-retorno:active { border-color: var(--warn); }
+
+/* ===================== Cards / seções ===================== */
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  padding: 14px; margin-bottom: 14px; box-shadow: var(--shadow);
+}
+.card h2 { font-size: 14px; margin: 0 0 12px; letter-spacing: 0.01em; }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.section-head h2 { margin: 0; display: flex; align-items: center; gap: 7px; }
+
+/* ===================== Botões ===================== */
+.btn {
+  border: 1px solid var(--border-2); background: var(--card-2); color: var(--text);
+  border-radius: 11px; padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; font-family: inherit;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--green); border-color: var(--green); color: #0a1120; font-weight: 700;
+  box-shadow: 0 4px 16px rgba(166, 206, 46, 0.22);
+}
+.btn-primary:active { background: var(--green-d); border-color: var(--green-d); }
+.btn-ghost { background: rgba(255, 255, 255, 0.04); border-color: var(--border); color: var(--text); }
+.btn-ghost:active { background: rgba(255, 255, 255, 0.09); }
+.btn-lg { padding: 13px 22px; font-size: 15px; }
+.btn-sm { padding: 6px 11px; font-size: 12px; }
+.btn-block { width: 100%; justify-content: center; margin-top: 6px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-danger { color: var(--danger); border-color: rgba(242, 104, 107, 0.35); background: var(--danger-dim); }
+.btn-danger:active { background: rgba(242, 104, 107, 0.24); }
+
+/* ===================== Formulário ===================== */
+.field { margin-bottom: 12px; display: flex; flex-direction: column; }
+.field label {
+  font-size: 11px; color: var(--muted); margin-bottom: 5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.field input, .field select, .select-inline select {
+  padding: 11px; border: 1px solid var(--border-2); border-radius: 11px; font-size: 15px;
+  background: var(--bg-2); color: var(--text); font-family: inherit;
+}
+.field input::placeholder { color: var(--muted-2); }
+.field input:focus, .field select:focus {
+  outline: none; border-color: var(--green); box-shadow: 0 0 0 3px var(--green-dim);
+}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* Item de grid tem min-width:auto -> input/select nao encolhem abaixo da largura
+   intrinseca (num <select>, a do maior <option>) e vazam a tela no celular. */
+.grid-2 > * { min-width: 0; }
+.field select { text-overflow: ellipsis; }
+.select-inline { display: flex; flex-direction: column; font-size: 10px; color: var(--muted); gap: 3px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.select-inline select { padding: 7px 9px; font-size: 13px; }
+.row { display: flex; gap: 10px; margin-top: 4px; }
+.hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.chip { background: var(--blue-dim); color: var(--blue); border-radius: 999px; font-size: 11px; font-weight: 700; padding: 2px 9px; }
+.chip-warn { background: var(--warn-dim); color: var(--warn); }
+
+/* ===================== Ícone da fila (topbar) ===================== */
+.queue-icon {
+  position: relative; width: 40px; height: 40px; border-radius: 11px;
+  border: 1px solid var(--border-2); background: var(--card-2); color: var(--text);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden;
+}
+.queue-doc { display: flex; }
+.queue-doc svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.queue-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.queue-badge {
+  position: absolute; top: -6px; right: -6px; background: var(--green); color: #0a1120;
+  min-width: 18px; height: 18px; border-radius: 999px; font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--ink);
+}
+
+/* ===================== Listas de documentos ===================== */
+.pending-card { border-color: rgba(240, 173, 60, 0.4); }
+.doclist { display: flex; flex-direction: column; gap: 8px; }
+.doc-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-2);
+}
+.doc-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.doc-thumb {
+  width: 42px; height: 54px; object-fit: cover; border: 1px solid var(--border-2);
+  border-radius: 7px; background: var(--card-2); flex-shrink: 0;
+}
+.doc-thumb-ph { display: flex; align-items: center; justify-content: center; color: var(--muted-2); }
+.doc-thumb-ph svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.doc-info { min-width: 0; }
+.doc-info strong { font-family: var(--ff-head); font-size: 13px; }
+.doc-info .doc-type { color: var(--muted); font-weight: 500; }
+.doc-tag { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+.tag-warn { background: var(--warn-dim); color: var(--warn); }
+.meta-line { color: var(--muted-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.filters input, .filters select {
+  padding: 9px; border: 1px solid var(--border-2); border-radius: 10px; font-size: 13px;
+  flex: 1; min-width: 110px; background: var(--bg-2); color: var(--text); font-family: inherit;
+}
+.filters input:focus, .filters select:focus { outline: none; border-color: var(--blue); }
+
+/* ===================== Toast ===================== */
+.toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  background: var(--card-2); color: var(--text); border: 1px solid var(--border-2);
+  padding: 11px 18px; border-radius: 12px; font-size: 14px; font-weight: 500;
+  z-index: 90; max-width: 90vw; text-align: center; box-shadow: var(--shadow-lg);
+}
+.toast.ok { background: var(--green); border-color: var(--green); color: #0a1120; font-weight: 700; }
+.toast.err { background: var(--danger); border-color: var(--danger); color: #1a0708; font-weight: 700; }
+
+/* ===================== Telas ===================== */
+.screen[hidden] { display: none !important; }
+.fullscreen {
+  position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+}
+
+/* ===================== Câmera (tela cheia) ===================== */
+.cam-stage { position: absolute; inset: 0; }
+#screen-camera { background: #000; }
+#screen-camera #video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+#screen-camera .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.cam-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center;
+  justify-content: space-between; gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
+}
+.cam-icon {
+  background: rgba(10, 17, 32, 0.6); color: #fff; border: 1px solid rgba(255, 255, 255, 0.22);
+  min-width: 42px; height: 42px; border-radius: 999px; font-size: 18px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 10px;
+  backdrop-filter: blur(6px);
+}
+.cam-queue {
+  display: inline-flex; align-items: center; gap: 8px; background: rgba(10, 17, 32, 0.62); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; padding: 6px 14px 6px 6px;
+  font-weight: 700; font-size: 13px; cursor: pointer; font-family: var(--ff-head);
+  backdrop-filter: blur(6px);
+}
+.cam-queue-thumb { width: 30px; height: 30px; border-radius: 7px; object-fit: cover; }
+.cv-loading {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  background: rgba(10, 17, 32, 0.7); color: #cddaeb; font-size: 12px; padding: 6px 12px; border-radius: 999px;
+}
+.cam-mode-chip {
+  background: rgba(10, 17, 32, 0.62); color: #fff; font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: 999px; align-self: center;
+  border: 1px solid rgba(166, 206, 46, 0.4); backdrop-filter: blur(6px);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw;
+}
+.cam-hint {
+  position: absolute; bottom: 128px; left: 0; right: 0; z-index: 2; text-align: center;
+  color: #dbe4f0; font-size: 13px; padding: 0 16px; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+.cam-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+  padding: 16px 18px calc(16px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+}
+.cam-filter select {
+  background: rgba(10, 17, 32, 0.62); color: #fff; border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 9px; padding: 8px; font-size: 13px; font-family: inherit;
+}
+.shutter {
+  width: 68px; height: 68px; border-radius: 999px; background: #fff;
+  border: 5px solid rgba(166, 206, 46, 0.65); cursor: pointer; flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 24px rgba(166, 206, 46, 0.28);
+}
+.shutter:active { transform: scale(0.94); background: var(--green); }
+.cam-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.chk-cam { color: #fff; font-size: 12px; display: flex; align-items: center; gap: 5px; font-weight: 600; }
+.chk-cam input { accent-color: var(--green); }
+
+/* ===================== Análise (tela cheia) ===================== */
+#screen-analysis {
+  background: var(--bg); color: var(--text); overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+}
+.an-top {
+  display: flex; align-items: center; gap: 12px; color: #fff; background: var(--ink);
+  border-bottom: 1px solid var(--border);
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  flex: none;
+}
+.an-top .cam-icon { min-width: 36px; height: 36px; font-size: 16px; }
+.an-top strong { flex: 1; font-family: var(--ff-head); font-size: 15px; }
+.an-progress { font-size: 12px; color: var(--muted); font-weight: 600; }
+/* Os paineis crescem p/ preencher a tela: sem isso, quando o conteudo cabe, sobra
+   um vao de fundo abaixo da barra de acoes (o `margin-top:auto` dela so funciona
+   com o pai em flex column). `flex-shrink:0` mantem a rolagem quando nao cabe. */
+#anPreviewPanel, #anEditPanel { display: flex; flex-direction: column; flex: 1 0 auto; }
+
+/* Prévia (documento recortado) */
+.an-preview-wrap {
+  background: #000; display: flex; align-items: center; justify-content: center;
+  max-height: 46vh; overflow: hidden; padding: 10px;
+}
+.an-preview-img {
+  max-width: 100%; max-height: 44vh; object-fit: contain; display: block; background: #fff;
+  border-radius: 4px; box-shadow: 0 6px 26px rgba(0, 0, 0, 0.6);
+}
+.an-editctrls {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; flex-wrap: wrap;
+  background: var(--card); border-bottom: 1px solid var(--border);
+}
+.an-form { padding: 14px; }
+.an-actions {
+  display: flex; gap: 10px; padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+  position: sticky; bottom: 0; background: var(--bg-2); border-top: 1px solid var(--border); margin-top: auto;
+}
+.an-actions .btn-primary { flex: 1; justify-content: center; }
+.an-edit-hint { color: var(--muted); font-size: 12px; padding: 12px 14px 0; margin: 0; }
+
+/* Editor de bordas */
+.editor-wrap {
+  width: 100%; background: #000; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; max-height: 62vh;
+}
+.editor-canvas { max-width: 100%; max-height: 62vh; display: block; touch-action: none; cursor: crosshair; }
+#screen-analysis .editor-wrap {
+  background: #000; display: flex; align-items: center; justify-content: center;
+  max-height: 50vh; overflow: hidden;
+}
+#screen-analysis .editor-canvas { max-width: 100%; max-height: 50vh; display: block; touch-action: none; cursor: crosshair; }
+
+/* Tira de páginas na análise (documento multipágina) */
+.an-pagestrip {
+  display: flex; gap: 8px; overflow-x: auto; overscroll-behavior: contain; padding: 8px 14px;
+  background: var(--card); border-bottom: 1px solid var(--border);
+}
+.an-page {
+  position: relative; flex-shrink: 0; width: 54px; height: 54px; padding: 0;
+  border: 2px solid var(--border-2); border-radius: 9px; overflow: hidden; cursor: pointer; background: var(--bg-2);
+}
+.an-page img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.an-page.active { border-color: var(--green); }
+.an-page-num {
+  position: absolute; bottom: 2px; right: 2px; background: rgba(7, 13, 24, 0.85); color: #fff;
+  font-size: 10px; line-height: 1.4; padding: 0 4px; border-radius: 4px;
+}
+
+/* ===================== Balão de instalação ===================== */
+.install-balloon {
+  position: fixed; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 45; max-width: 560px; margin: 0 auto;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card-2); border: 1px solid var(--border-2); border-radius: 16px;
+  padding: 12px 12px 12px 14px; box-shadow: var(--shadow-lg);
+}
+.install-ico {
+  width: 40px; height: 40px; border-radius: 11px; background: #fff; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; padding: 5px; flex-shrink: 0;
+}
+.install-ico img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.install-txt { flex: 1; min-width: 0; }
+.install-txt strong { display: block; font-family: var(--ff-head); font-size: 14px; }
+.install-txt small { color: var(--muted); font-size: 12px; }
+.install-x {
+  border: none; background: none; color: var(--muted); font-size: 15px; cursor: pointer;
+  width: 28px; height: 28px; border-radius: 999px; flex-shrink: 0;
+}
+.install-x:active { background: rgba(255, 255, 255, 0.08); }
+
+/* ===================== Folha de modo (após escolher o tipo) ===================== */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 70; background: rgba(3, 7, 14, 0.72);
+  display: flex; align-items: flex-end; justify-content: center;
+  backdrop-filter: blur(3px);
+}
+.sheet {
+  width: 100%; max-width: 520px; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-bottom: none;
+  border-radius: 20px 20px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+}
+.sheet-head { display: flex; align-items: center; gap: 12px; margin: 2px 0 16px; }
+.sheet-ico {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+  background: var(--green-dim); color: var(--green);
+  display: flex; align-items: center; justify-content: center;
+}
+.sheet-ico svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.sheet-head-txt { min-width: 0; }
+.sheet-head-txt strong { display: block; font-family: var(--ff-head); font-size: 16px; }
+.sheet-head-txt small { color: var(--muted); font-size: 12px; }
+.mode-opt {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: var(--card-2); border: 1px solid var(--border); border-radius: 13px;
+  padding: 12px; margin-bottom: 10px; cursor: pointer; color: var(--text); font-family: inherit;
+}
+.mode-opt:active { transform: translateY(1px); border-color: var(--green); }
+.mode-ico { font-size: 26px; flex-shrink: 0; }
+.mode-txt { display: flex; flex-direction: column; min-width: 0; }
+.mode-txt strong { font-family: var(--ff-head); font-size: 14px; }
+.mode-txt small { color: var(--muted); font-size: 12px; }
+
+/* ===================== Animação de captura ===================== */
+.cap-fx {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.cap-fx-flash { position: absolute; inset: 0; background: #fff; opacity: 1; }
+.cap-fx-stage {
+  position: relative; opacity: 0; transform: scale(0.9);
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.3);
+  will-change: transform, opacity;
+}
+.cap-fx-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.cap-fx-raw { z-index: 2; } /* bruto por cima; vai sendo cortado revelando o tratado */
+.cap-fx-line {
+  position: absolute; left: -4%; right: -4%; top: 0; height: 3px; z-index: 3;
+  transform: translateY(-50%); opacity: 0;
+  background: var(--green);
+  box-shadow:
+    0 0 6px 1px var(--green),
+    0 0 16px 3px rgba(166, 206, 46, 0.85),
+    0 0 40px 10px rgba(166, 206, 46, 0.5);
+}
+.cap-fx-line::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 46px;
+  background: linear-gradient(to top, rgba(166, 206, 46, 0.35), rgba(166, 206, 46, 0));
+}
+
+/* pulso do ícone da fila ao receber o documento */
+@keyframes queuePulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+.queue-pulse { animation: queuePulse 0.55s cubic-bezier(0.3, 1.4, 0.5, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cap-fx-line, .cap-fx-flash { display: none; }
+  .type-card { transition: none; }
+}
+
+/* ===================== Telas estreitas / baixas ===================== */
+@media (max-width: 340px) {
+  .type-grid { grid-template-columns: 1fr; }
+  .type-card { min-height: 0; flex-direction: row; align-items: center; }
+}
+@media (max-height: 700px) {
+  .hero { margin-bottom: 10px; }
+  .hero h1 { font-size: 18px; }
+  .type-card { min-height: 104px; padding: 12px 11px; }
+}
